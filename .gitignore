@@ -2,3 +2,7 @@
 /examples/c/build
 /examples/c/.xmake
 /.idea
+cuda_trace
+cpu_trace
+nvml_trace
+init

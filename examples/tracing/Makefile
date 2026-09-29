@@ -22,10 +22,30 @@ VMLINUX := ../../vmlinux.h/include/$(ARCH)/vmlinux.h
 # outdated
 INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC)
 CFLAGS := -g -Wall
+
+HOSTARCH := $(shell uname -m)
+ifeq ($(HOSTARCH),aarch64)
+  NVML_DIR ?= /usr/lib/aarch64-linux-gnu/
+  NVML_INC ?= /usr/local/cuda-13.0/targets/sbsa-linux/include
+else
+  NVML_DIR ?= /usr/lib/x86_64-linux-gnu/
+  NVML_INC ?= /usr/local/cuda/include
+endif
+LDFLAGS = -lmnl -lpthread
+ifneq ($(wildcard $(NVML_DIR)/libnvidia-ml.so),)
+  CFLAGS += -I$(NVML_INC)
+  LDFLAGS += -L$(NVML_DIR) -Wl,-rpath,$(NVML_DIR) -lnvidia-ml
+else ifneq ($(wildcard $(NVML_DIR)/libnvidia-ml.so.1),)
+  CFLAGS += -I$(NVML_INC)
+  LDFLAGS += -L$(NVML_DIR) -Wl,-rpath,$(NVML_DIR) -Wl,--no-as-needed -l:libnvidia-ml.so.1
+else
+  $(info [cuda-trace] NVML not found; building without NVML)
+  CFLAGS += -DNO_NVML
+endif
+
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = minimal minimal_legacy minimal_ns bootstrap uprobe kprobe fentry \
-       usdt sockfilter tc ksyscall task_iter lsm
+APPS = cuda_trace nvml_trace cpu_trace init
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
