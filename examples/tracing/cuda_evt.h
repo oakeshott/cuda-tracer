@@ -114,6 +114,8 @@ struct event {
             uint64_t stream;        /* cudaStream_t (0 for GroupStart/End) */
             int32_t  dtype;         /* ncclDataType_t (-1 if N/A) */
             int32_t  peer;          /* peer rank for Send/Recv (-1 otherwise) */
+            uint64_t comm;          /* opaque ncclComm_t handle; 0 if N/A */
+            int32_t  redop;         /* ncclRedOp_t, including custom ops; -1 if N/A */
         } nccl;
 
         struct {

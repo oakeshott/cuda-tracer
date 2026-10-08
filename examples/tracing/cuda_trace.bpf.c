@@ -1097,7 +1097,8 @@ int BPF_KPROBE(cudaEventSynchronize_exit)
  * rank for root-based collectives. */
 static __always_inline void emit_nccl(struct pt_regs *ctx, __u32 fid,
                                       __u64 count, __u64 stream,
-                                      __s32 dtype, __s32 peer)
+                                      __s32 dtype, __s32 peer,
+                                      __u64 comm, __s32 redop)
 {
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return;
@@ -1107,6 +1108,8 @@ static __always_inline void emit_nccl(struct pt_regs *ctx, __u32 fid,
     e->u.nccl.stream = stream;
     e->u.nccl.dtype  = dtype;
     e->u.nccl.peer   = peer;
+    e->u.nccl.comm   = comm;
+    e->u.nccl.redop  = redop;
     bpf_ringbuf_submit(e, 0);
 }
 
@@ -1117,7 +1120,9 @@ int BPF_KPROBE(ncclSend_enter)
               (__u64)PT_REGS_PARM2(ctx),
               (__u64)PT_REGS_PARM6(ctx),
               (__s32)PT_REGS_PARM3(ctx),
-              (__s32)PT_REGS_PARM4(ctx));
+              (__s32)PT_REGS_PARM4(ctx),
+              (__u64)PT_REGS_PARM5(ctx),
+              -1);
     return 0;
 }
 
@@ -1128,7 +1133,9 @@ int BPF_KPROBE(ncclRecv_enter)
               (__u64)PT_REGS_PARM2(ctx),
               (__u64)PT_REGS_PARM6(ctx),
               (__s32)PT_REGS_PARM3(ctx),
-              (__s32)PT_REGS_PARM4(ctx));
+              (__s32)PT_REGS_PARM4(ctx),
+              (__u64)PT_REGS_PARM5(ctx),
+              -1);
     return 0;
 }
 
@@ -1140,7 +1147,9 @@ int BPF_KPROBE(ncclAllReduce_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM7(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              -1);
+              -1,
+              (__u64)PT_REGS_PARM6(ctx),
+              (__s32)PT_REGS_PARM5(ctx));
     return 0;
 }
 
@@ -1151,7 +1160,9 @@ int BPF_KPROBE(ncclBroadcast_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM7(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              (__s32)PT_REGS_PARM5(ctx));
+              (__s32)PT_REGS_PARM5(ctx),
+              (__u64)PT_REGS_PARM6(ctx),
+              -1);
     return 0;
 }
 
@@ -1162,7 +1173,9 @@ int BPF_KPROBE(ncclBcast_enter)
               (__u64)PT_REGS_PARM2(ctx),
               (__u64)PT_REGS_PARM6(ctx),
               (__s32)PT_REGS_PARM3(ctx),
-              (__s32)PT_REGS_PARM4(ctx));
+              (__s32)PT_REGS_PARM4(ctx),
+              (__u64)PT_REGS_PARM5(ctx),
+              -1);
     return 0;
 }
 
@@ -1173,7 +1186,9 @@ int BPF_KPROBE(ncclReduce_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM8(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              (__s32)PT_REGS_PARM6(ctx));
+              (__s32)PT_REGS_PARM6(ctx),
+              (__u64)PT_REGS_PARM7(ctx),
+              (__s32)PT_REGS_PARM5(ctx));
     return 0;
 }
 
@@ -1184,6 +1199,8 @@ int BPF_KPROBE(ncclAllGather_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM6(ctx),
               (__s32)PT_REGS_PARM4(ctx),
+              -1,
+              (__u64)PT_REGS_PARM5(ctx),
               -1);
     return 0;
 }
@@ -1195,7 +1212,9 @@ int BPF_KPROBE(ncclReduceScatter_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM7(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              -1);
+              -1,
+              (__u64)PT_REGS_PARM6(ctx),
+              (__s32)PT_REGS_PARM5(ctx));
     return 0;
 }
 
@@ -1206,6 +1225,8 @@ int BPF_KPROBE(ncclAlltoAll_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM6(ctx),
               (__s32)PT_REGS_PARM4(ctx),
+              -1,
+              (__u64)PT_REGS_PARM5(ctx),
               -1);
     return 0;
 }
@@ -1217,7 +1238,9 @@ int BPF_KPROBE(ncclGather_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM7(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              (__s32)PT_REGS_PARM5(ctx));
+              (__s32)PT_REGS_PARM5(ctx),
+              (__u64)PT_REGS_PARM6(ctx),
+              -1);
     return 0;
 }
 
@@ -1228,7 +1251,9 @@ int BPF_KPROBE(ncclScatter_enter)
               (__u64)PT_REGS_PARM3(ctx),
               (__u64)PT_REGS_PARM7(ctx),
               (__s32)PT_REGS_PARM4(ctx),
-              (__s32)PT_REGS_PARM5(ctx));
+              (__s32)PT_REGS_PARM5(ctx),
+              (__u64)PT_REGS_PARM6(ctx),
+              -1);
     return 0;
 }
 
@@ -1236,20 +1261,20 @@ int BPF_KPROBE(ncclScatter_enter)
 SEC("uprobe")
 int BPF_KPROBE(ncclGroupStart_enter)
 {
-    emit_nccl(ctx, F_NCCL_GROUP_START, 0, 0, -1, -1);
+    emit_nccl(ctx, F_NCCL_GROUP_START, 0, 0, -1, -1, 0, -1);
     return 0;
 }
 
 SEC("uprobe")
 int BPF_KPROBE(ncclGroupEnd_enter)
 {
-    emit_nccl(ctx, F_NCCL_GROUP_END, 0, 0, -1, -1);
+    emit_nccl(ctx, F_NCCL_GROUP_END, 0, 0, -1, -1, 0, -1);
     return 0;
 }
 
 SEC("uprobe")
 int BPF_KPROBE(ncclGroupSimulateEnd_enter)
 {
-    emit_nccl(ctx, F_NCCL_GROUP_SIMULATE_END, 0, 0, -1, -1);
+    emit_nccl(ctx, F_NCCL_GROUP_SIMULATE_END, 0, 0, -1, -1, 0, -1);
     return 0;
 }

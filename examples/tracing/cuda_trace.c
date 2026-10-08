@@ -346,6 +346,16 @@ static int handle_event(void *ctx, void *data, size_t len)
                        e->ppid, e->pid, e->tid,
                        (unsigned long long)e->trace_hi, (unsigned long long)e->trace_lo,
                        e->comm, fname);
+                   /* Dedicated NCCL columns preserve custom operators and element counts. */
+                   if (e->func >= F_NCCL_SEND && e->func <= F_NCCL_SCATTER &&
+                       e->func != F_NCCL_GROUP_START && e->func != F_NCCL_GROUP_END) {
+                       printf(",0x%llx,", (unsigned long long)e->u.nccl.comm);
+                       if (e->u.nccl.redop != -1)
+                           printf("%d", e->u.nccl.redop);
+                       printf(",%llu", (unsigned long long)e->u.nccl.count);
+                   } else {
+                       printf(",,,");
+                   }
                #else
                    printf("[%ld.%06ld] ppid=%u, pid=%u tid=%u trace_id=%016llx%016llx, comm=%s func=%s",
                        (long)(e->ts_ns/1000000000ULL),
@@ -575,15 +585,17 @@ static int handle_event(void *ctx, void *data, size_t len)
                : (dt==4||dt==5||dt==8) ? 8 : 0;
         unsigned long long bytes = (unsigned long long)e->u.nccl.count * (unsigned long long)sz;
 #ifdef CSV_MODE
-        /* cols after fname: grid,block,sharedmem,complete,stream,ret,op,token,latency,bytes */
+        /* Remaining columns: grid,block,shared_mem,complete,stream,ret,op,token,latency,bytes.
+         * bytes is the API element count times datatype size, not wire traffic. */
         printf(",,,,,%p,,dt=%d,p=%d,,%llu",
             (void*)(uintptr_t)e->u.nccl.stream,
             e->u.nccl.dtype, e->u.nccl.peer, bytes);
 #else
-        printf(" count=%llu dtype=%d peer=%d stream=%p bytes=%llu",
+        printf(" count=%llu dtype=%d peer=%d stream=%p bytes=%llu nccl_comm=0x%llx nccl_redop=%d",
             (unsigned long long)e->u.nccl.count,
             e->u.nccl.dtype, e->u.nccl.peer,
-            (void*)(uintptr_t)e->u.nccl.stream, bytes);
+            (void*)(uintptr_t)e->u.nccl.stream, bytes,
+            (unsigned long long)e->u.nccl.comm, e->u.nccl.redop);
 #endif
         printf("\n");
         break;
@@ -1058,7 +1070,7 @@ int main(int argc, char **argv) {
   /*   pthread_detach(th); */
   /* #endif */
 
-  printf("timestamp,ppid,pid,tid,trace_id,comm,fname,grid,block,shared_mem,complete,stream,ret,op,token,latency,bytes\n");
+  printf("timestamp,ppid,pid,tid,trace_id,comm,fname,nccl_comm,nccl_redop,count,grid,block,shared_mem,complete,stream,ret,op,token,latency,bytes\n");
   // メインループ
   unsigned long long start_ns = 0;
   if (duration > 0) {
